@@ -104,6 +104,10 @@ int main() {
     centerpoint::CenterPointConfig config(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
         {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3});
     std::string data_file = "../data/2.bin";
+    std::string encoder_onnx = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.onnx";
+    std::string encoder_engine = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.engine";
+    std::string head_onnx = "/home/development/quantization_lib/model/pts_backbone_neck_head_centerpoint.onnx";
+    std::string head_engine = "/home/development/quantization_lib/model/pts_backbone_neck_head_centerpoint.engine";
 
     unsigned int length = 0;
     void *data = NULL;
@@ -120,7 +124,7 @@ int main() {
     // unsigned int points_data_size = points_size * 4 * sizeof(float);
 
     std::vector<float> points_vec(points_size);
-    for(int i = 0; i < points_size; ++i) {
+    for(auto i = 0; i < points_size; ++i) {
         points_vec[i] = points[i];
         // std::cout << i <<", " <<points_vec[i] << std::endl;
     }
@@ -147,40 +151,35 @@ int main() {
     cudaStream_t stream_{nullptr};
     cudaStreamCreate(&stream_);
 
-    const auto voxels_size =
-    num_voxels_ * config_.max_point_in_voxel_size_ * config_.point_feature_size_;
-    const auto coordinates_size = num_voxels_ * config_.point_dim_size_;
-
     cuda::unique_ptr<float[]> voxels_d_ = cuda::make_unique<float[]>(voxels_size);
     cuda::unique_ptr<int[]> coordinates_d_ = cuda::make_unique<int[]>(coordinates_size);
-    cuda::unique_ptr<float[]> num_points_per_voxel_d_ = cuda::make_unique<float[]>(config_.max_voxel_size_);
+    cuda::unique_ptr<float[]> num_points_per_voxel_d_ = cuda::make_unique<float[]>(config.max_voxel_size_);
     cuda::unique_ptr<float[]> encoder_in_features_d_ = cuda::make_unique<float[]>(encoder_in_feature_size_);
     cuda::unique_ptr<float[]> pillar_features_d_ = cuda::make_unique<float[]>(pillar_features_size);
     cuda::unique_ptr<float[]> spatial_features_d_ = cuda::make_unique<float[]>(spatial_features_size_);
-    cuda::unique_ptr<float[]> head_out_heatmap_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.class_size_);
-    cuda::unique_ptr<float[]> head_out_offset_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_offset_size_);
-    cuda::unique_ptr<float[]> head_out_z_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_z_size_);
-    cuda::unique_ptr<float[]> head_out_dim_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_dim_size_);
-    cuda::unique_ptr<float[]> head_out_rot_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_rot_size_);
-    cuda::unique_ptr<float[]> head_out_vel_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_vel_size_);
+    cuda::unique_ptr<float[]> head_out_heatmap_d_ = cuda::make_unique<float[]>(grid_xy_size * config.class_size_);
+    cuda::unique_ptr<float[]> head_out_offset_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_offset_size_);
+    cuda::unique_ptr<float[]> head_out_z_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_z_size_);
+    cuda::unique_ptr<float[]> head_out_dim_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_dim_size_);
+    cuda::unique_ptr<float[]> head_out_rot_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_rot_size_);
+    cuda::unique_ptr<float[]> head_out_vel_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_vel_size_);
 
-    std::unique_ptr<centerpoint::VoxelEncoderTRT> encoder_trt_ptr_ = std::make_unique<VoxelEncoderTRT>(config);
-    encoder_trt_ptr_->init(
-        encoder_param.onnx_path(), encoder_param.engine_path(), encoder_param.trt_precision());
+    std::unique_ptr<centerpoint::VoxelEncoderTRT> encoder_trt_ptr_ = std::make_unique<centerpoint::VoxelEncoderTRT>(config);
+    encoder_trt_ptr_->init(encoder_onnx, encoder_engine, "fp16");
     encoder_trt_ptr_->context_->setBindingDimensions(
         0,
         nvinfer1::Dims3(
-        config_.max_voxel_size_, config_.max_point_in_voxel_size_, config_.encoder_in_feature_size_));
+        config.max_voxel_size_, config.max_point_in_voxel_size_, config.encoder_in_feature_size_));
 
     std::vector<std::size_t> out_channel_sizes = {
-        config_.class_size_,        config_.head_out_offset_size_, config_.head_out_z_size_,
-        config_.head_out_dim_size_, config_.head_out_rot_size_,    config_.head_out_vel_size_};
+        config.class_size_,        config.head_out_offset_size_, config.head_out_z_size_,
+        config.head_out_dim_size_, config.head_out_rot_size_,    config.head_out_vel_size_};
     std::unique_ptr<centerpoint::HeadTRT> head_trt_ptr_ = std::make_unique<centerpoint::HeadTRT>(config);
-    head_trt_ptr_->init(head_param.onnx_path(), head_param.engine_path(), head_param.trt_precision());
+    head_trt_ptr_->init(head_onnx, head_engine, "fp16");
     head_trt_ptr_->context_->setBindingDimensions(
         0, nvinfer1::Dims4(
-            config_.batch_size_, config_.encoder_out_feature_size_, config_.grid_size_y_,
-            config_.grid_size_x_));
+            config.batch_size_, config.encoder_out_feature_size_, config.grid_size_y_,
+            config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
     // memcpy from host to device (not copy empty voxels)
@@ -198,7 +197,7 @@ int main() {
 
     CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
 
-    CHECK_CUDA_ERROR(generateFeatures_launch(
+    CHECK_CUDA_ERROR(centerpoint::generateFeatures_launch(
         voxels_d_.get(), num_points_per_voxel_d_.get(), coordinates_d_.get(), num_voxels_,
         config.max_voxel_size_, config.voxel_size_x_, config.voxel_size_y_, config.voxel_size_z_,
         config.range_min_x_, config.range_min_y_, config.range_min_z_, encoder_in_features_d_.get(),
@@ -208,7 +207,7 @@ int main() {
     encoder_trt_ptr_->context_->enqueueV2(encoder_buffers.data(), stream_, nullptr);
 
 
-    CHECK_CUDA_ERROR(scatterFeatures_launch(
+    CHECK_CUDA_ERROR(centerpoint::scatterFeatures_launch(
         pillar_features_d_.get(), coordinates_d_.get(), num_voxels_, config.max_voxel_size_,
         config.encoder_out_feature_size_, config.grid_size_x_, config.grid_size_y_,
         spatial_features_d_.get(), stream_));
@@ -228,7 +227,7 @@ int main() {
     // cuda::unique_ptr<float[]> head_out_rot_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_rot_size_);
     // cuda::unique_ptr<float[]> head_out_vel_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_vel_size_);
 
-    std::vector<centerpont::Box3D> det_boxes3d;
+    std::vector<centerpoint::Box3D> det_boxes3d;
     CHECK_CUDA_ERROR(post_proc_ptr_->generateDetectedBoxes3D_launch(
         head_out_heatmap_d_.get(), head_out_offset_d_.get(), head_out_z_d_.get(), head_out_dim_d_.get(),
         head_out_rot_d_.get(), head_out_vel_d_.get(), det_boxes3d, stream_));

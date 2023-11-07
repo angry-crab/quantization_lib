@@ -12,20 +12,6 @@
 
 namespace centerpoint
 {
-struct Box3D
-{
-  int label;
-  float score;
-  float x;
-  float y;
-  float z;
-  float length;
-  float width;
-  float height;
-  float yaw;
-  float vel_x;
-  float vel_y;
-};
 
 class PostProcessCUDA
 {

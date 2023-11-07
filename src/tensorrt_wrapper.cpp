@@ -17,6 +17,7 @@
 #include <NvOnnxParser.h>
 
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -134,7 +135,7 @@ bool TensorRTWrapper::parseONNX(
   engine_ = TrtUniquePtr<nvinfer1::ICudaEngine>(
     runtime_->deserializeCudaEngine(plan_->data(), plan_->size()));
   if (!engine_) {
-    std::cout <<  "Failed to create engine") << std::endl;
+    std::cout <<  "Failed to create engine" << std::endl;
     return false;
   }
 
