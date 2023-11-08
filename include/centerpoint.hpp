@@ -5,6 +5,7 @@
 #include "postprocess_kernel.hpp"
 #include "scatter_kernel.hpp"
 #include "preprocess_kernel.hpp"
+#include "timer.hpp"
 
 #include <memory>
 #include <string>
