@@ -213,73 +213,71 @@ int main() {
             config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
-    auto start = std::chrono::system_clock::now();
-    int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
-    auto end = std::chrono::system_clock::now();
-    timing_pre_voxel_.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    for(int i = 0; i < 100; ++i) {
+        centerpoint::random_input(points_vec);
+        std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
+        int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto count = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        timing_pre_voxel_.push_back(count/1000000.0);
 
-    std::cout << "voxel : " << num_voxels_ << std::endl;
+        std::cout << "voxel : " << num_voxels_ << std::endl;
 
-    // memcpy from host to device (not copy empty voxels)
-    CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    voxels_d_.get(), voxels_.data(), voxels_size * sizeof(float), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    coordinates_d_.get(), coordinates_.data(), coordinates_size * sizeof(int),
-    cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpyAsync(
-    num_points_per_voxel_d_.get(), num_points_per_voxel_.data(), num_voxels_ * sizeof(float),
-    cudaMemcpyHostToDevice));
+        // memcpy from host to device (not copy empty voxels)
+        CHECK_CUDA_ERROR(cudaMemcpyAsync(
+        voxels_d_.get(), voxels_.data(), voxels_size * sizeof(float), cudaMemcpyHostToDevice));
+        CHECK_CUDA_ERROR(cudaMemcpyAsync(
+        coordinates_d_.get(), coordinates_.data(), coordinates_size * sizeof(int),
+        cudaMemcpyHostToDevice));
+        CHECK_CUDA_ERROR(cudaMemcpyAsync(
+        num_points_per_voxel_d_.get(), num_points_per_voxel_.data(), num_voxels_ * sizeof(float),
+        cudaMemcpyHostToDevice));
 
-    CHECK_CUDA_ERROR(cudaMemsetAsync(
-    encoder_in_features_d_.get(), 0, encoder_in_feature_size_ * sizeof(float), stream_));
+        CHECK_CUDA_ERROR(cudaMemsetAsync(
+        encoder_in_features_d_.get(), 0, encoder_in_feature_size_ * sizeof(float), stream_));
 
-    CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
+        CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
 
-    timer_.start(stream_);
-    CHECK_CUDA_ERROR(centerpoint::generateFeatures_launch(
-        voxels_d_.get(), num_points_per_voxel_d_.get(), coordinates_d_.get(), num_voxels_,
-        config.max_voxel_size_, config.voxel_size_x_, config.voxel_size_y_, config.voxel_size_z_,
-        config.range_min_x_, config.range_min_y_, config.range_min_z_, encoder_in_features_d_.get(),
-        stream_));
-    timing_pre_.push_back(timer_.stop("GenerateFeatures_kernel", true));
+        timer_.start(stream_);
+        CHECK_CUDA_ERROR(centerpoint::generateFeatures_launch(
+            voxels_d_.get(), num_points_per_voxel_d_.get(), coordinates_d_.get(), num_voxels_,
+            config.max_voxel_size_, config.voxel_size_x_, config.voxel_size_y_, config.voxel_size_z_,
+            config.range_min_x_, config.range_min_y_, config.range_min_z_, encoder_in_features_d_.get(),
+            stream_));
+        timing_pre_.push_back(timer_.stop("GenerateFeatures_kernel", true));
 
-    std::vector<void *> encoder_buffers{encoder_in_features_d_.get(), pillar_features_d_.get()};
-    timer_.start(stream_);
-    encoder_trt_ptr_->context_->enqueueV2(encoder_buffers.data(), stream_, nullptr);
-    timing_voxel_trt_.push_back(timer_.stop("Encoder_trt", true));
+        std::vector<void *> encoder_buffers{encoder_in_features_d_.get(), pillar_features_d_.get()};
+        timer_.start(stream_);
+        encoder_trt_ptr_->context_->enqueueV2(encoder_buffers.data(), stream_, nullptr);
+        timing_voxel_trt_.push_back(timer_.stop("Encoder_trt", true));
 
-    timer_.start(stream_);
-    CHECK_CUDA_ERROR(centerpoint::scatterFeatures_launch(
-        pillar_features_d_.get(), coordinates_d_.get(), num_voxels_, config.max_voxel_size_,
-        config.encoder_out_feature_size_, config.grid_size_x_, config.grid_size_y_,
-        spatial_features_d_.get(), stream_));
-    timing_seletc_.push_back(timer_.stop("Select_kernel", true));
+        timer_.start(stream_);
+        CHECK_CUDA_ERROR(centerpoint::scatterFeatures_launch(
+            pillar_features_d_.get(), coordinates_d_.get(), num_voxels_, config.max_voxel_size_,
+            config.encoder_out_feature_size_, config.grid_size_x_, config.grid_size_y_,
+            spatial_features_d_.get(), stream_));
+        timing_seletc_.push_back(timer_.stop("Select_kernel", true));
 
-    CHECK_CUDA_ERROR(
-    cudaMemsetAsync(spatial_features_d_.get(), 0, spatial_features_size_ * sizeof(float), stream_));
+        CHECK_CUDA_ERROR(
+        cudaMemsetAsync(spatial_features_d_.get(), 0, spatial_features_size_ * sizeof(float), stream_));
 
-    std::vector<void *> head_buffers = {spatial_features_d_.get(), head_out_heatmap_d_.get(),
-                                        head_out_offset_d_.get(),  head_out_z_d_.get(),
-                                        head_out_dim_d_.get(),     head_out_rot_d_.get(),
-                                        head_out_vel_d_.get()};
-    timer_.start(stream_);
-    head_trt_ptr_->context_->enqueueV2(head_buffers.data(), stream_, nullptr);
-    timing_head_trt_.push_back(timer_.stop("Head_trt", true));
-    // cuda::unique_ptr<float[]> head_out_heatmap_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.class_size_);
-    // cuda::unique_ptr<float[]> head_out_offset_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_offset_size_);
-    // cuda::unique_ptr<float[]> head_out_z_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_z_size_);
-    // cuda::unique_ptr<float[]> head_out_dim_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_dim_size_);
-    // cuda::unique_ptr<float[]> head_out_rot_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_rot_size_);
-    // cuda::unique_ptr<float[]> head_out_vel_d_ = cuda::make_unique<float[]>(grid_xy_size * config_.head_out_vel_size_);
+        std::vector<void *> head_buffers = {spatial_features_d_.get(), head_out_heatmap_d_.get(),
+                                            head_out_offset_d_.get(),  head_out_z_d_.get(),
+                                            head_out_dim_d_.get(),     head_out_rot_d_.get(),
+                                            head_out_vel_d_.get()};
+        timer_.start(stream_);
+        head_trt_ptr_->context_->enqueueV2(head_buffers.data(), stream_, nullptr);
+        timing_head_trt_.push_back(timer_.stop("Head_trt", true));
 
-    std::vector<centerpoint::Box3D> det_boxes3d;
-    timer_.start(stream_);
-    CHECK_CUDA_ERROR(post_proc_ptr_->generateDetectedBoxes3D_launch(
-        head_out_heatmap_d_.get(), head_out_offset_d_.get(), head_out_z_d_.get(), head_out_dim_d_.get(),
-        head_out_rot_d_.get(), head_out_vel_d_.get(), det_boxes3d, stream_));
-    timing_post_.push_back(timer_.stop("Post_kernel", true));
-    std::cout << "detect size : " << det_boxes3d.size() << std::endl;
-
+        std::vector<centerpoint::Box3D> det_boxes3d;
+        timer_.start(stream_);
+        CHECK_CUDA_ERROR(post_proc_ptr_->generateDetectedBoxes3D_launch(
+            head_out_heatmap_d_.get(), head_out_offset_d_.get(), head_out_z_d_.get(), head_out_dim_d_.get(),
+            head_out_rot_d_.get(), head_out_vel_d_.get(), det_boxes3d, stream_));
+        timing_post_.push_back(timer_.stop("Post_kernel", true));
+        std::cout << "detect size : " << det_boxes3d.size() << std::endl;
+    }
 
     float a = getAverage(timing_pre_voxel_);
     float b = getAverage(timing_pre_);

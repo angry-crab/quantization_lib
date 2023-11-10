@@ -1,0 +1,17 @@
+TRT-8401-MinMaxCalibration
+input_features: 3da14283
+14: 3f8ddab0
+(Unnamed Layer* 9) [Shuffle]_output: 3f8ddab0
+(Unnamed Layer* 10) [Scale]_output: 3e4427bc
+17: 3e4427bc
+18: 3e4427bc
+19: 3e4427bc
+35: 3e4427bc
+36: 3e4427bc
+37: 3e4427bc
+39: 3e301f77
+(Unnamed Layer* 55) [Shuffle]_output: 3e301f77
+(Unnamed Layer* 56) [Scale]_output: 3e77d2ed
+42: 3e77d2ed
+43: 3e28498a
+pillar_features: 3e28498a

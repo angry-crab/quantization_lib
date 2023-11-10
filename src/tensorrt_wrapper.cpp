@@ -120,16 +120,21 @@ bool TensorRTWrapper::parseONNX(
       config->setFlag(nvinfer1::BuilderFlag::kINT8);
       config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
       // builder->setInt8Mode(true);
+
       std::vector<int> v;
+      std::string s("?");
+      std::string cache_file;
       if(config_.mode_ == 0) {
         v = std::vector<int>{40000, 9, 32};
+        cache_file = "/home/development/quantization_lib/model/cal_encoder.txt";
       }
       else {
         v = std::vector<int>{32, 560, 560};
+        cache_file = "/home/development/quantization_lib/model/cal_head.txt";
       }
-      std::unique_ptr<nvinfer1::IInt8Calibrator> calibrator;
-      DummyBatchStream dbs("?", v);
-      calibrator.reset(new Int8EntropyCalibrator(dbs, "/home/development/quantization_lib/model/cal.txt", false));
+      DummyBatchStream dbs(s, v); 
+
+      calibrator.reset(new Int8EntropyCalibrator(dbs, cache_file, true));
       config->setInt8Calibrator(calibrator.get());
     } else {
       std::cout << "TensorRT INT8 Inference isn't supported in this environment" << std::endl;

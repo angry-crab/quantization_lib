@@ -3,57 +3,44 @@
 
 #include "centerpoint_config.hpp"
 #include "cuda_utils.hpp"
+#include "utils.hpp"
+
 
 #include <NvInfer.h>
 
 #include <iostream>
 #include <memory>
 #include <string>
-#include <cstdlib>
-#include <ctime>
 #include <iterator>
 #include <fstream>
 
 namespace centerpoint
 {
 
-class IBatchStream
+class DummyBatchStream
 {
 public:
-    virtual void reset(int firstBatch) = 0;
-    virtual bool next() = 0;
-    virtual void skip(int skipCount) = 0;
-    virtual float* getBatch() = 0;
-    virtual int getBatchesRead() const = 0;
-    virtual int getBatchSize() const = 0;
-    virtual nvinfer1::Dims getDims() const = 0;
-};
-
-class DummyBatchStream : public IBatchStream
-{
-public:
-    DummyBatchStream(const std::string& dataFile, std::vector<int>& dim)
+    DummyBatchStream(std::string& dataFile, std::vector<int>& dim)
      //!< We already know the dimensions of MNIST images.
     {
         mDims = nvinfer1::Dims{3, {dim[0], dim[1], dim[2]}};
         std::size_t size = dim[0] * dim[1] * dim[2];
         mData.resize(size);
 
-        srand(static_cast <unsigned> (time(0)));
-        for(int i = 0; i < size; ++i) {
-          mData[i] = (rand() / ( RAND_MAX / (10.0) ) );
-        }
-
-        std::cout << "dummy init done" << std::endl;
+        random_input(mData);
+        // srand(static_cast <unsigned> (time(0)));
+        // for(int i = 0; i < size; ++i) {
+        //   mData[i] = (rand() / ( RAND_MAX / (10.0) ) );
+        // }
 
     }
 
-    void reset(int firstBatch) override
+    void reset(int firstBatch)
     {
         mBatchCount = firstBatch;
     }
 
-    bool next() override
+    bool next()
     {
         if (mBatchCount >= mMaxBatches)
         {
@@ -63,28 +50,27 @@ public:
         return true;
     }
 
-    void skip(int skipCount) override
+    void skip(int skipCount)
     {
         mBatchCount += skipCount;
     }
 
-    float* getBatch() override
+    float* getBatch()
     {
-        std::cout << "get batch" << std::endl;
         return mData.data();
     }
 
-    int getBatchesRead() const override
+    int getBatchesRead() const
     {
         return mBatchCount;
     }
 
-    int getBatchSize() const override
+    int getBatchSize() const
     {
         return mBatchSize;
     }
 
-    nvinfer1::Dims getDims() const override
+    nvinfer1::Dims getDims() const
     {
         return nvinfer1::Dims{4, {mBatchSize, mDims.d[0], mDims.d[1], mDims.d[2]}};
     }
@@ -183,6 +169,7 @@ public:
 
   bool getBatch(void * bindings[], const char * names[], int nb_bindings) noexcept override
   {
+    // std::cout << "getBatch" << std::endl;
     (void)names;
     (void)nb_bindings;
 
@@ -201,6 +188,7 @@ public:
 
   const void * readCalibrationCache(size_t & length) noexcept override
   {
+    // std::cout << "readCalibrationCache" << std::endl;
     calib_cache_.clear();
     std::ifstream input(calibration_cache_file_, std::ios::binary);
     input >> std::noskipws;
@@ -221,6 +209,7 @@ public:
 
   void writeCalibrationCache(const void * cache, size_t length) noexcept override
   {
+    // std::cout << "writeCalibrationCache" << std::endl;
     std::ofstream output(calibration_cache_file_, std::ios::binary);
     output.write(reinterpret_cast<const char *>(cache), length);
   }
@@ -301,6 +290,8 @@ private:
   TrtUniquePtr<nvinfer1::IRuntime> runtime_{nullptr};
   TrtUniquePtr<nvinfer1::IHostMemory> plan_{nullptr};
   TrtUniquePtr<nvinfer1::ICudaEngine> engine_{nullptr};
+
+  std::unique_ptr<nvinfer1::IInt8Calibrator> calibrator;
 };
 
 }  // namespace centerpoint

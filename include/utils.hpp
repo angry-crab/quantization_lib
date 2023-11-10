@@ -2,6 +2,9 @@
 #define CENTERPOINT_UTILS_HPP
 
 #include <cstddef>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
 
 namespace centerpoint
 {
@@ -21,6 +24,10 @@ struct Box3D
 };
 
 std::size_t divup(const std::size_t a, const std::size_t b);
+
+void init_time();
+
+void random_input(std::vector<float>& input);
 
 }  // namespace centerpoint
 

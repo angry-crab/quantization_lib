@@ -16,4 +16,14 @@ std::size_t divup(const std::size_t a, const std::size_t b)
   return (a + b - 1) / b;
 }
 
+void init_time() {
+    srand(static_cast <unsigned> (time(0)));
+}
+
+void random_input(std::vector<float>& input) {
+    for(int i = 0; i < input.size(); ++i) {
+      input[i] = (rand() / ( RAND_MAX / (100.0) ));
+    }
+}
+
 }  // namespace centerpoint
