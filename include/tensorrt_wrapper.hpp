@@ -2,15 +2,238 @@
 #define CENTERPOINT_TENSORRT_WRAPPER_HPP
 
 #include "centerpoint_config.hpp"
+#include "cuda_utils.hpp"
 
 #include <NvInfer.h>
 
 #include <iostream>
 #include <memory>
 #include <string>
+#include <cstdlib>
+#include <ctime>
+#include <iterator>
+#include <fstream>
 
 namespace centerpoint
 {
+
+class IBatchStream
+{
+public:
+    virtual void reset(int firstBatch) = 0;
+    virtual bool next() = 0;
+    virtual void skip(int skipCount) = 0;
+    virtual float* getBatch() = 0;
+    virtual int getBatchesRead() const = 0;
+    virtual int getBatchSize() const = 0;
+    virtual nvinfer1::Dims getDims() const = 0;
+};
+
+class DummyBatchStream : public IBatchStream
+{
+public:
+    DummyBatchStream(const std::string& dataFile, std::vector<int>& dim)
+     //!< We already know the dimensions of MNIST images.
+    {
+        mDims = nvinfer1::Dims{3, {dim[0], dim[1], dim[2]}};
+        std::size_t size = dim[0] * dim[1] * dim[2];
+        mData.resize(size);
+
+        srand(static_cast <unsigned> (time(0)));
+        for(int i = 0; i < size; ++i) {
+          mData[i] = (rand() / ( RAND_MAX / (10.0) ) );
+        }
+
+        std::cout << "dummy init done" << std::endl;
+
+    }
+
+    void reset(int firstBatch) override
+    {
+        mBatchCount = firstBatch;
+    }
+
+    bool next() override
+    {
+        if (mBatchCount >= mMaxBatches)
+        {
+            return false;
+        }
+        ++mBatchCount;
+        return true;
+    }
+
+    void skip(int skipCount) override
+    {
+        mBatchCount += skipCount;
+    }
+
+    float* getBatch() override
+    {
+        std::cout << "get batch" << std::endl;
+        return mData.data();
+    }
+
+    int getBatchesRead() const override
+    {
+        return mBatchCount;
+    }
+
+    int getBatchSize() const override
+    {
+        return mBatchSize;
+    }
+
+    nvinfer1::Dims getDims() const override
+    {
+        return nvinfer1::Dims{4, {mBatchSize, mDims.d[0], mDims.d[1], mDims.d[2]}};
+    }
+
+private:
+    // void readDataFile(const std::string& dataFilePath)
+    // {
+    //     std::ifstream file{dataFilePath.c_str(), std::ios::binary};
+
+    //     int magicNumber, numImages, imageH, imageW;
+    //     file.read(reinterpret_cast<char*>(&magicNumber), sizeof(magicNumber));
+    //     // All values in the MNIST files are big endian.
+    //     magicNumber = samplesCommon::swapEndianness(magicNumber);
+    //     ASSERT(magicNumber == 2051 && "Magic Number does not match the expected value for an MNIST image set");
+
+    //     // Read number of images and dimensions
+    //     file.read(reinterpret_cast<char*>(&numImages), sizeof(numImages));
+    //     file.read(reinterpret_cast<char*>(&imageH), sizeof(imageH));
+    //     file.read(reinterpret_cast<char*>(&imageW), sizeof(imageW));
+
+    //     numImages = samplesCommon::swapEndianness(numImages);
+    //     imageH = samplesCommon::swapEndianness(imageH);
+    //     imageW = samplesCommon::swapEndianness(imageW);
+
+    //     // The MNIST data is made up of unsigned bytes, so we need to cast to float and normalize.
+    //     int numElements = numImages * imageH * imageW;
+    //     std::vector<uint8_t> rawData(numElements);
+    //     file.read(reinterpret_cast<char*>(rawData.data()), numElements * sizeof(uint8_t));
+    //     mData.resize(numElements);
+    //     std::transform(
+    //         rawData.begin(), rawData.end(), mData.begin(), [](uint8_t val) { return static_cast<float>(val) / 255.f; });
+    // }
+
+    // void readLabelsFile(const std::string& labelsFilePath)
+    // {
+    //     std::ifstream file{labelsFilePath.c_str(), std::ios::binary};
+    //     int magicNumber, numImages;
+    //     file.read(reinterpret_cast<char*>(&magicNumber), sizeof(magicNumber));
+    //     // All values in the MNIST files are big endian.
+    //     magicNumber = samplesCommon::swapEndianness(magicNumber);
+    //     ASSERT(magicNumber == 2049 && "Magic Number does not match the expected value for an MNIST labels file");
+
+    //     file.read(reinterpret_cast<char*>(&numImages), sizeof(numImages));
+    //     numImages = samplesCommon::swapEndianness(numImages);
+
+    //     std::vector<uint8_t> rawLabels(numImages);
+    //     file.read(reinterpret_cast<char*>(rawLabels.data()), numImages * sizeof(uint8_t));
+    //     mLabels.resize(numImages);
+    //     std::transform(
+    //         rawLabels.begin(), rawLabels.end(), mLabels.begin(), [](uint8_t val) { return static_cast<float>(val); });
+    // }
+
+    int mBatchSize{1};
+    int mBatchCount{0}; //!< The batch that will be read on the next invocation of next()
+    int mMaxBatches{100};
+    nvinfer1::Dims mDims{};
+    std::vector<float> mData{};
+};
+
+class Int8EntropyCalibrator : public nvinfer1::IInt8MinMaxCalibrator
+{
+public:
+  Int8EntropyCalibrator(
+    DummyBatchStream & stream, const std::string calibration_cache_file,
+    bool read_cache = true)
+  : stream_(stream), calibration_cache_file_(calibration_cache_file), read_cache_(read_cache)
+  {
+    auto d = stream_.getDims();
+    input_count_ = stream_.getBatchSize() * d.d[1] * d.d[2] * d.d[3];
+
+    std::cout << "dim : " << d.d[1] << " , " << d.d[2] << " , " << d.d[3]  << std::endl;
+
+    CHECK_CUDA_ERROR(cudaMalloc(&device_input_, input_count_ * sizeof(float)));
+    auto algType = getAlgorithm();
+    switch (algType) {
+      case (nvinfer1::CalibrationAlgoType::kLEGACY_CALIBRATION):
+        std::cout << "CalibrationAlgoType : kLEGACY_CALIBRATION" << std::endl;
+        break;
+      case (nvinfer1::CalibrationAlgoType::kENTROPY_CALIBRATION):
+        std::cout << "CalibrationAlgoType : kENTROPY_CALIBRATION" << std::endl;
+        break;
+      case (nvinfer1::CalibrationAlgoType::kENTROPY_CALIBRATION_2):
+        std::cout << "CalibrationAlgoType : kENTROPY_CALIBRATION_2" << std::endl;
+        break;
+      case (nvinfer1::CalibrationAlgoType::kMINMAX_CALIBRATION):
+        std::cout << "CalibrationAlgoType : kMINMAX_CALIBRATION" << std::endl;
+        break;
+      default:
+        std::cout << "No CalibrationAlgType" << std::endl;
+        break;
+    }
+  }
+  int getBatchSize() const noexcept override { return stream_.getBatchSize(); }
+
+  virtual ~Int8EntropyCalibrator() { CHECK_CUDA_ERROR(cudaFree(device_input_)); }
+
+  bool getBatch(void * bindings[], const char * names[], int nb_bindings) noexcept override
+  {
+    (void)names;
+    (void)nb_bindings;
+
+    if (!stream_.next()) {
+      return false;
+    }
+    try {
+      CHECK_CUDA_ERROR(cudaMemcpy(
+        device_input_, stream_.getBatch(), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+    } catch (const std::exception & e) {
+      // Do nothing
+    }
+    bindings[0] = device_input_;
+    return true;
+  }
+
+  const void * readCalibrationCache(size_t & length) noexcept override
+  {
+    calib_cache_.clear();
+    std::ifstream input(calibration_cache_file_, std::ios::binary);
+    input >> std::noskipws;
+    if (read_cache_ && input.good()) {
+      std::copy(
+        std::istream_iterator<char>(input), std::istream_iterator<char>(),
+        std::back_inserter(calib_cache_));
+    }
+
+    length = calib_cache_.size();
+    if (length) {
+      std::cout << "Using cached calibration table to build the engine" << std::endl;
+    } else {
+      std::cout << "New calibration table will be created to build the engine" << std::endl;
+    }
+    return length ? &calib_cache_[0] : nullptr;
+  }
+
+  void writeCalibrationCache(const void * cache, size_t length) noexcept override
+  {
+    std::ofstream output(calibration_cache_file_, std::ios::binary);
+    output.write(reinterpret_cast<const char *>(cache), length);
+  }
+
+private:
+  DummyBatchStream stream_;
+  const std::string calibration_cache_file_;
+  bool read_cache_{true};
+  size_t input_count_;
+  void * device_input_{nullptr};
+  std::vector<char> calib_cache_;
+  std::vector<char> hist_cache_;
+};
 
 class Logger : public nvinfer1::ILogger {
   public:
@@ -71,6 +294,9 @@ private:
   bool loadEngine(const std::string & engine_path);
 
   bool createContext();
+
+  bool setDynamicRange(TrtUniquePtr<nvinfer1::INetworkDefinition>& network);
+  void setLayerPrecision(TrtUniquePtr<nvinfer1::INetworkDefinition>& network);
 
   TrtUniquePtr<nvinfer1::IRuntime> runtime_{nullptr};
   TrtUniquePtr<nvinfer1::IHostMemory> plan_{nullptr};

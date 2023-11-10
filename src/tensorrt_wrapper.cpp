@@ -21,6 +21,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <limits>
 
 namespace centerpoint
 {
@@ -86,6 +87,11 @@ bool TensorRTWrapper::parseONNX(
     return false;
   }
 
+  const auto flag =
+    1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  auto network =
+    TrtUniquePtr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(flag));
+
   auto config =
     TrtUniquePtr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
   if (!config) {
@@ -106,10 +112,37 @@ bool TensorRTWrapper::parseONNX(
     }
   }
 
-  const auto flag =
-    1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
-  auto network =
-    TrtUniquePtr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(flag));
+  builder->setMaxBatchSize(1);
+
+  if (precision == "int8") {
+    if (builder->platformHasFastInt8()) {
+      std::cout <<  "Using TensorRT INT8 Inference" << std::endl;
+      config->setFlag(nvinfer1::BuilderFlag::kINT8);
+      config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
+      // builder->setInt8Mode(true);
+      std::vector<int> v;
+      if(config_.mode_ == 0) {
+        v = std::vector<int>{40000, 9, 32};
+      }
+      else {
+        v = std::vector<int>{32, 560, 560};
+      }
+      std::unique_ptr<nvinfer1::IInt8Calibrator> calibrator;
+      DummyBatchStream dbs("?", v);
+      calibrator.reset(new Int8EntropyCalibrator(dbs, "/home/development/quantization_lib/model/cal.txt", false));
+      config->setInt8Calibrator(calibrator.get());
+    } else {
+      std::cout << "TensorRT INT8 Inference isn't supported in this environment" << std::endl;
+    }
+  }
+
+  // if (precision == "int8") {
+  //   setLayerPrecision(network);
+  //   bool res = setDynamicRange(network);
+  //   if(res) {
+  //     std::cout <<  "Set to int8" << std::endl;
+  //   }
+  // }
   if (!network) {
     std::cout <<  "Failed to create network" << std::endl;
     return false;
@@ -132,6 +165,8 @@ bool TensorRTWrapper::parseONNX(
     std::cout <<  "Failed to create serialized network" << std::endl;
     return false;
   }
+
+  std::cout <<  "deserializeCudaEngine" << std::endl;
   engine_ = TrtUniquePtr<nvinfer1::ICudaEngine>(
     runtime_->deserializeCudaEngine(plan_->data(), plan_->size()));
   if (!engine_) {
@@ -160,6 +195,92 @@ bool TensorRTWrapper::loadEngine(const std::string & engine_path)
     reinterpret_cast<const void *>(engine_str.data()), engine_str.size()));
   std::cout <<  "Loaded engine from " << engine_path << std::endl;
   return true;
+}
+
+bool TensorRTWrapper::setDynamicRange(TrtUniquePtr<nvinfer1::INetworkDefinition>& network)
+{
+  float max_range = 50.0;
+  // set dynamic range for network input tensors
+  for (int i = 0; i < network->getNbInputs(); ++i)
+  {
+      std::string tName = network->getInput(i)->getName();
+      if (!network->getInput(i)->setDynamicRange(-max_range, max_range))
+      {
+          return false;
+      }
+  }
+
+  // set dynamic range for layer output tensors
+  for (int i = 0; i < network->getNbLayers(); ++i)
+  {
+      auto lyr = network->getLayer(i);
+      for (int j = 0, e = lyr->getNbOutputs(); j < e; ++j)
+      {
+          std::string tName = lyr->getOutput(j)->getName();
+          if (lyr->getType() == nvinfer1::LayerType::kCONSTANT)
+          {
+              nvinfer1::IConstantLayer* cLyr = static_cast<nvinfer1::IConstantLayer*>(lyr);
+              auto wts = cLyr->getWeights();
+              double max = std::numeric_limits<double>::min();
+              for (int64_t wb = 0, we = wts.count; wb < we; ++wb)
+              {
+                  double val{};
+                  switch (wts.type)
+                  {
+                    case nvinfer1::DataType::kFLOAT: val = static_cast<const float*>(wts.values)[wb]; break;
+                    case nvinfer1::DataType::kBOOL: val = static_cast<const bool*>(wts.values)[wb]; break;
+                    case nvinfer1::DataType::kINT8: val = static_cast<const int8_t*>(wts.values)[wb]; break;
+                    // case nvinfer1::DataType::kHALF: val = static_cast<const half_float::half*>(wts.values)[wb]; break;
+                    case nvinfer1::DataType::kHALF: val = 1.0; break;
+                    case nvinfer1::DataType::kINT32: val = static_cast<const int32_t*>(wts.values)[wb]; break;
+                  }
+                  max = std::max(max, std::abs(val));
+              }
+
+              if (!lyr->getOutput(j)->setDynamicRange(-max, max))
+              {
+                  return false;
+              }
+          }
+          else
+          {
+              // Calibrator generated dynamic range for network tensor can be overriden or set using below API
+              if (!lyr->getOutput(j)->setDynamicRange(-max_range, max_range))
+              {
+                  return false;
+              }
+          }
+      }
+  }
+
+  return true;
+}
+
+void TensorRTWrapper::setLayerPrecision(TrtUniquePtr<nvinfer1::INetworkDefinition>& network)
+{
+    for (int i = 0; i < network->getNbLayers(); ++i)
+    {
+        auto layer = network->getLayer(i);
+
+        // Don't set the precision on non-computation layers as they don't support
+        // int8.
+        if (layer->getType() != nvinfer1::LayerType::kCONSTANT && layer->getType() != nvinfer1::LayerType::kCONCATENATION
+            && layer->getType() != nvinfer1::LayerType::kSHAPE)
+        {
+            // set computation precision of the layer
+            layer->setPrecision(nvinfer1::DataType::kINT8);
+        }
+
+        for (int j = 0; j < layer->getNbOutputs(); ++j)
+        {
+            std::string tensorName = layer->getOutput(j)->getName();
+            // set output type of execution tensors and not shape tensors.
+            if (layer->getOutput(j)->isExecutionTensor())
+            {
+                layer->setOutputType(j, nvinfer1::DataType::kINT8);
+            }
+        }
+    }
 }
 
 }  // namespace centerpoint

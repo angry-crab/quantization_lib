@@ -127,7 +127,10 @@ double getAverage(std::vector<T> const& v) {
 int main() {
     EventTimer timer_;
     centerpoint::CenterPointConfig config(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
-        {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3});
+        {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 0);
+    centerpoint::CenterPointConfig config_1(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
+        {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 1);
+    std::string precision = "int8";
     std::string data_file = "../data/2.bin";
     std::string encoder_onnx = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.engine";
@@ -193,7 +196,7 @@ int main() {
     cuda::unique_ptr<float[]> head_out_vel_d_ = cuda::make_unique<float[]>(grid_xy_size * config.head_out_vel_size_);
 
     std::unique_ptr<centerpoint::VoxelEncoderTRT> encoder_trt_ptr_ = std::make_unique<centerpoint::VoxelEncoderTRT>(config);
-    encoder_trt_ptr_->init(encoder_onnx, encoder_engine, "fp16");
+    encoder_trt_ptr_->init(encoder_onnx, encoder_engine, precision);
     encoder_trt_ptr_->context_->setBindingDimensions(
         0,
         nvinfer1::Dims3(
@@ -202,8 +205,8 @@ int main() {
     std::vector<std::size_t> out_channel_sizes = {
         config.class_size_,        config.head_out_offset_size_, config.head_out_z_size_,
         config.head_out_dim_size_, config.head_out_rot_size_,    config.head_out_vel_size_};
-    std::unique_ptr<centerpoint::HeadTRT> head_trt_ptr_ = std::make_unique<centerpoint::HeadTRT>(config);
-    head_trt_ptr_->init(head_onnx, head_engine, "fp16");
+    std::unique_ptr<centerpoint::HeadTRT> head_trt_ptr_ = std::make_unique<centerpoint::HeadTRT>(config_1);
+    head_trt_ptr_->init(head_onnx, head_engine, precision);
     head_trt_ptr_->context_->setBindingDimensions(
         0, nvinfer1::Dims4(
             config.batch_size_, config.encoder_out_feature_size_, config.grid_size_y_,
