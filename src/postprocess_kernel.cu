@@ -120,11 +120,11 @@ cudaError_t PostProcessCUDA::generateDetectedBoxes3D_launch(
     config_.down_grid_size_y_, config_.downsample_factor_, config_.class_size_,
     thrust::raw_pointer_cast(yaw_norm_thresholds_d_.data()),
     thrust::raw_pointer_cast(boxes3d_d_.data()));
-  // std::cout << "1" << std::endl;
   // suppress by score
   const auto num_det_boxes3d = thrust::count_if(
     thrust::device, boxes3d_d_.begin(), boxes3d_d_.end(),
-    is_score_greater(config_.score_threshold_));
+    is_score_greater(config_.score_threshold_));\
+  std::cout << "det_boxes3d size : " << num_det_boxes3d << std::endl;
   if (num_det_boxes3d == 0) {
     return cudaGetLastError();
   }

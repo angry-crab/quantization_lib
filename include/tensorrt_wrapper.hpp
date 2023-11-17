@@ -4,7 +4,7 @@
 #include "centerpoint_config.hpp"
 #include "cuda_utils.hpp"
 #include "utils.hpp"
-#include "simple_profiler.hpp"
+// #include "simple_profiler.hpp"
 
 
 #include <NvInfer.h>
@@ -296,7 +296,7 @@ private:
 
   std::unique_ptr<nvinfer1::IInt8Calibrator> calibrator;
 
-  SimpleProfiler model_profiler_{"Model"};
+  // SimpleProfiler model_profiler_{"Model"};
 };
 
 }  // namespace centerpoint

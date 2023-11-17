@@ -49,7 +49,7 @@ bool TensorRTWrapper::init(
   }
 
   std::cout << "Net : " << onnx_path << std::endl;
-  printNetworkInfo(onnx_path, precision);
+  // printNetworkInfo(onnx_path, precision);
 
   bool success;
   std::ifstream engine_file(engine_path);
@@ -76,7 +76,7 @@ bool TensorRTWrapper::createContext()
     std::cout << "Failed to create context" << std::endl;
     return false;
   }
-  context_->setProfiler(&model_profiler_);
+  // context_->setProfiler(&model_profiler_);
 
   return true;
 }
@@ -112,19 +112,20 @@ bool TensorRTWrapper::parseONNX(
     if (builder->platformHasFastFp16()) {
       std::cout <<  "Using TensorRT FP16 Inference" << std::endl;
       config->setFlag(nvinfer1::BuilderFlag::kFP16);
+      config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
     } else {
       std::cout << "TensorRT FP16 Inference isn't supported in this environment" << std::endl;
     }
   }
 
   // builder->setMaxBatchSize(1);
-  // config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
 
   if (precision == "int8") {
     if (builder->platformHasFastInt8()) {
       std::cout <<  "Using TensorRT INT8 Inference" << std::endl;
-      config->setFlag(nvinfer1::BuilderFlag::kINT8);
       // config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
+      config->setFlag(nvinfer1::BuilderFlag::kINT8);
+      config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
       // builder->setInt8Mode(true);
 
       std::vector<int> v;
@@ -329,7 +330,7 @@ void TensorRTWrapper::printNetworkInfo(const std::string & onnx_file_path, const
   else if (precision_ == "int8") {
     config->setFlag(nvinfer1::BuilderFlag::kINT8);
   }
-  config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
+  config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
 #if (NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSOR_PATCH >= 8400
   config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, max_workspace_size_);
 #else
@@ -349,7 +350,7 @@ void TensorRTWrapper::printNetworkInfo(const std::string & onnx_file_path, const
     nvinfer1::ILayer * layer = network->getLayer(i);
     auto layer_type = layer->getType();
     std::string name = layer->getName();
-    model_profiler_.setProfDict(layer);
+    // model_profiler_.setProfDict(layer);
 
     if (layer_type == nvinfer1::LayerType::kCONSTANT) {
       std::cout << "C" << i << " [Constant]" << std::endl;

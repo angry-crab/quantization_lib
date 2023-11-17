@@ -20,7 +20,8 @@ find_library(NVONNXPARSER nvonnxparser)
 if(NVONNXPARSER)
   message("NVONNXPARSER ok")
 endif()
-find_package(CUDA REQUIRED)
+# find_package(CUDA REQUIRED)
+enable_language(CUDA)
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message("Using Debug Mode")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -g -G --ptxas-options=-v)
@@ -42,7 +43,7 @@ file(GLOB_RECURSE SOURCE_FILES
   src/*.cpp
 )
 
-cuda_add_executable(${PROJECT_NAME} main.cpp ${SOURCE_FILES})
+add_executable(${PROJECT_NAME} main.cpp ${SOURCE_FILES})
 
 target_link_LIBraries(${PROJECT_NAME}
     libnvinfer.so

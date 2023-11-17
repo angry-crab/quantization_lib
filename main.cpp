@@ -130,12 +130,12 @@ int main() {
         {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 0);
     centerpoint::CenterPointConfig config_1(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
         {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 1);
-    std::string precision = "int8";
-    std::string data_file = "../data/2.bin";
-    std::string encoder_onnx = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.onnx";
-    std::string encoder_engine = "/home/development/quantization_lib/model/pts_voxel_encoder_centerpoint.engine";
-    std::string head_onnx = "/home/development/quantization_lib/model/pts_backbone_neck_head_centerpoint.onnx";
-    std::string head_engine = "/home/development/quantization_lib/model/pts_backbone_neck_head_centerpoint.engine";
+    std::string precision = "fp16";
+    std::string data_file = "../data/112.pcd.bin";
+    std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
+    std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
+    std::string head_onnx = "../model/pts_backbone_neck_head_centerpoint.onnx";
+    std::string head_engine = "../model/pts_backbone_neck_head_centerpoint.engine";
 
     std::vector<float> timing_pre_voxel_;
     std::vector<float> timing_pre_;
@@ -213,8 +213,8 @@ int main() {
             config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
-    for(int i = 0; i < 100; ++i) {
-        centerpoint::random_input(points_vec);
+    for(int i = 0; i < 1; ++i) {
+        // centerpoint::random_input(points_vec);
         // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
