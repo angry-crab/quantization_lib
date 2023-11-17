@@ -4,6 +4,7 @@
 #include "centerpoint_config.hpp"
 #include "cuda_utils.hpp"
 #include "utils.hpp"
+#include "simple_profiler.hpp"
 
 
 #include <NvInfer.h>
@@ -287,11 +288,15 @@ private:
   bool setDynamicRange(TrtUniquePtr<nvinfer1::INetworkDefinition>& network);
   void setLayerPrecision(TrtUniquePtr<nvinfer1::INetworkDefinition>& network);
 
+  void printNetworkInfo(const std::string & onnx_file_path, const std::string & precision_);
+
   TrtUniquePtr<nvinfer1::IRuntime> runtime_{nullptr};
   TrtUniquePtr<nvinfer1::IHostMemory> plan_{nullptr};
   TrtUniquePtr<nvinfer1::ICudaEngine> engine_{nullptr};
 
   std::unique_ptr<nvinfer1::IInt8Calibrator> calibrator;
+
+  SimpleProfiler model_profiler_{"Model"};
 };
 
 }  // namespace centerpoint

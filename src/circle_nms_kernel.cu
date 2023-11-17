@@ -5,6 +5,8 @@
 
 #include <thrust/host_vector.h>
 
+#include <iostream>
+
 namespace
 {
 const std::size_t THREADS_PER_BLOCK_NMS = 16;
@@ -84,6 +86,8 @@ std::size_t circleNMS(
   const auto col_blocks = divup(num_boxes3d, THREADS_PER_BLOCK_NMS);
   thrust::device_vector<std::uint64_t> mask_d(num_boxes3d * col_blocks);
 
+  // std::cout << "circle 1" << std::endl;
+
   CHECK_CUDA_ERROR(
     circleNMS_launch(boxes3d, num_boxes3d, col_blocks, distance_threshold, mask_d, stream));
 
@@ -92,9 +96,14 @@ std::size_t circleNMS(
   thrust::copy(mask_d.begin(), mask_d.end(), mask_h.begin());
   CHECK_CUDA_ERROR(cudaStreamSynchronize(stream));
 
+  // std::cout << "circle 2" << std::endl;
+
   // generate keep_mask
   std::vector<std::uint64_t> remv_h(col_blocks);
   thrust::host_vector<bool> keep_mask_h(keep_mask.size());
+
+  // std::cout << "circle 3" << std::endl;
+  
   std::size_t num_to_keep = 0;
   for (std::size_t i = 0; i < num_boxes3d; i++) {
     auto nblock = i / THREADS_PER_BLOCK_NMS;

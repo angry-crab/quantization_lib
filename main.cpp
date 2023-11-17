@@ -215,7 +215,7 @@ int main() {
 
     for(int i = 0; i < 100; ++i) {
         centerpoint::random_input(points_vec);
-        std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
+        // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
         auto end = std::chrono::high_resolution_clock::now();

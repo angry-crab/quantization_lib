@@ -6,6 +6,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>
 
+#include <iostream>
+
 namespace
 {
 const std::size_t THREADS_PER_BLOCK = 32;
@@ -118,7 +120,7 @@ cudaError_t PostProcessCUDA::generateDetectedBoxes3D_launch(
     config_.down_grid_size_y_, config_.downsample_factor_, config_.class_size_,
     thrust::raw_pointer_cast(yaw_norm_thresholds_d_.data()),
     thrust::raw_pointer_cast(boxes3d_d_.data()));
-
+  // std::cout << "1" << std::endl;
   // suppress by score
   const auto num_det_boxes3d = thrust::count_if(
     thrust::device, boxes3d_d_.begin(), boxes3d_d_.end(),
@@ -131,14 +133,19 @@ cudaError_t PostProcessCUDA::generateDetectedBoxes3D_launch(
     thrust::device, boxes3d_d_.begin(), boxes3d_d_.end(), det_boxes3d_d.begin(),
     is_score_greater(config_.score_threshold_));
 
+  // std::cout << "2" << std::endl;
   // sort by score
   thrust::sort(det_boxes3d_d.begin(), det_boxes3d_d.end(), score_greater());
 
+  // std::cout << "3" << std::endl;
   // supress by NMS
   thrust::device_vector<bool> final_keep_mask_d(num_det_boxes3d);
+
+  // std::cout << "4" << std::endl;
   const auto num_final_det_boxes3d =
     circleNMS(det_boxes3d_d, config_.circle_nms_dist_threshold_, final_keep_mask_d, stream);
 
+  // std::cout << "5" << std::endl;
   thrust::device_vector<Box3D> final_det_boxes3d_d(num_final_det_boxes3d);
   thrust::copy_if(
     thrust::device, det_boxes3d_d.begin(), det_boxes3d_d.end(), final_keep_mask_d.begin(),
