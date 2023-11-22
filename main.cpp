@@ -126,12 +126,12 @@ double getAverage(std::vector<T> const& v) {
 
 int main() {
     EventTimer timer_;
-    centerpoint::CenterPointConfig config(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
-        {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 0);
-    centerpoint::CenterPointConfig config_1(3, 4, 40000, {-89.6, -89.6, -3.0, 89.6, 89.6, 5.0}, 
-        {0.32, 0.32, 8.0}, 1, 9, 0.35, 0.5, {0.3, 0.0, 0.3}, 1);
-    std::string precision = "fp16";
-    std::string data_file = "../data/112.pcd.bin";
+    centerpoint::CenterPointConfig config(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
+        {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
+    centerpoint::CenterPointConfig config_1(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
+        {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
+    std::string precision = "int8";
+    std::string data_file = "../data/2.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
     std::string head_onnx = "../model/pts_backbone_neck_head_centerpoint.onnx";
@@ -213,8 +213,18 @@ int main() {
             config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
-    for(int i = 0; i < 1; ++i) {
-        // centerpoint::random_input(points_vec);
+    for(int i = 0; i < 100; ++i) {
+        std::fill(voxels_.begin(), voxels_.end(), 0);
+        std::fill(coordinates_.begin(), coordinates_.end(), -1);
+        std::fill(num_points_per_voxel_.begin(), num_points_per_voxel_.end(), 0);
+        CHECK_CUDA_ERROR(cudaMemsetAsync(
+            encoder_in_features_d_.get(), 0, encoder_in_feature_size_ * sizeof(float), stream_));
+        CHECK_CUDA_ERROR(
+            cudaMemsetAsync(spatial_features_d_.get(), 0, spatial_features_size_ * sizeof(float), stream_));
+        
+        CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
+        
+        centerpoint::random_input(points_vec);
         // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
@@ -233,9 +243,6 @@ int main() {
         CHECK_CUDA_ERROR(cudaMemcpyAsync(
         num_points_per_voxel_d_.get(), num_points_per_voxel_.data(), num_voxels_ * sizeof(float),
         cudaMemcpyHostToDevice));
-
-        CHECK_CUDA_ERROR(cudaMemsetAsync(
-        encoder_in_features_d_.get(), 0, encoder_in_feature_size_ * sizeof(float), stream_));
 
         CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
 
@@ -258,9 +265,6 @@ int main() {
             config.encoder_out_feature_size_, config.grid_size_x_, config.grid_size_y_,
             spatial_features_d_.get(), stream_));
         timing_seletc_.push_back(timer_.stop("Select_kernel", true));
-
-        CHECK_CUDA_ERROR(
-        cudaMemsetAsync(spatial_features_d_.get(), 0, spatial_features_size_ * sizeof(float), stream_));
 
         std::vector<void *> head_buffers = {spatial_features_d_.get(), head_out_heatmap_d_.get(),
                                             head_out_offset_d_.get(),  head_out_z_d_.get(),

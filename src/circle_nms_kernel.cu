@@ -84,7 +84,7 @@ std::size_t circleNMS(
 {
   const auto num_boxes3d = boxes3d.size();
   const auto col_blocks = divup(num_boxes3d, THREADS_PER_BLOCK_NMS);
-  std::cout << "circle num_boxes3d : " << num_boxes3d  << " col_blocks : " << col_blocks << std::endl;
+  // std::cout << "circle num_boxes3d : " << num_boxes3d  << " col_blocks : " << col_blocks << std::endl;
   thrust::device_vector<std::uint64_t> mask_d(num_boxes3d * col_blocks);
 
   // std::cout << "circle 1" << std::endl;
