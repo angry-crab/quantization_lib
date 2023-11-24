@@ -43,34 +43,57 @@ bool hasEnding(std::string const &fullString, std::string const &ending)
     }
 }
 
-int loadData(const char *file, void **data, unsigned int *length)
-{
-    std::fstream dataFile(file, std::ifstream::in);
+// int loadData(const char *file, void **data, unsigned int *length)
+// {
+//     std::fstream dataFile(file, std::ifstream::in);
 
-    if (!dataFile.is_open()) {
-        std::cout << "Can't open files: "<< file<<std::endl;
-        return -1;
+//     if (!dataFile.is_open()) {
+//         std::cout << "Can't open files: "<< file<<std::endl;
+//         return -1;
+//     }
+
+//     unsigned int len = 0;
+//     dataFile.seekg (0, dataFile.end);
+//     len = dataFile.tellg();
+//     dataFile.seekg (0, dataFile.beg);
+
+//     char *buffer = new char[len];
+//     if (buffer==NULL) {
+//         std::cout << "Can't malloc buffer."<<std::endl;
+//         dataFile.close();
+//         exit(EXIT_FAILURE);
+//     }
+
+//     dataFile.read(buffer, len);
+//     dataFile.close();
+
+//     *data = (void*)buffer;
+//     *length = len;
+//     return 0;  
+// }
+
+void read_cloud(std::string& input, std::vector<float>& buffer) {
+    // Ptr cloud(new PointCloud);
+    std::fstream file(input.c_str(), std::ios::in | std::ios::binary);
+    if(!file.good()){
+        std::cerr << "Could not read file: " << input << std::endl;
+        // return cloud;
     }
+    file.seekg(0, std::ios::beg);
+    for (int i=0; file.good() && !file.eof(); i++) {
+        float x;
+        // PointType point;
+        // file.read((char *) &point.x, 3*sizeof(float));
+        // file.read((char *) &point.intensity, sizeof(float));
+        // cloud->push_back(point);
 
-    unsigned int len = 0;
-    dataFile.seekg (0, dataFile.end);
-    len = dataFile.tellg();
-    dataFile.seekg (0, dataFile.beg);
-
-    char *buffer = new char[len];
-    if (buffer==NULL) {
-        std::cout << "Can't malloc buffer."<<std::endl;
-        dataFile.close();
-        exit(EXIT_FAILURE);
+        file.read((char *) &x, sizeof(float));
+        buffer.push_back(x);
     }
-
-    dataFile.read(buffer, len);
-    dataFile.close();
-
-    *data = (void*)buffer;
-    *length = len;
-    return 0;  
-}
+    file.close();
+    std::cout << "Read " + input + " Done !" << std::endl;
+    // return cloud;
+};
 
 template<typename T>
 double getAverage(std::vector<T> const& v) {
@@ -130,8 +153,8 @@ int main() {
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
     centerpoint::CenterPointConfig config_1(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
-    std::string precision = "int8";
-    std::string data_file = "../data/2.pcd.bin";
+    std::string precision = "fp16";
+    std::string data_file = "../data/38.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
     std::string head_onnx = "../model/pts_backbone_neck_head_centerpoint.onnx";
@@ -144,24 +167,30 @@ int main() {
     std::vector<float> timing_head_trt_;
     std::vector<float> timing_post_;
 
-    unsigned int length = 0;
-    void *data = NULL;
-    std::shared_ptr<char> buffer((char *)data, std::default_delete<char[]>());
-    loadData(data_file.data(), &data, &length);
-    buffer.reset((char *)data);
+    // unsigned int length = 0;
+    // void *data = NULL;
+    // std::shared_ptr<char> buffer((char *)data, std::default_delete<char[]>());
+    // loadData(data_file.data(), &data, &length);
+    // buffer.reset((char *)data);
 
-    float* points = (float*)buffer.get();
-    size_t points_size = length/sizeof(float)/4;
+    // float* points = (float*)buffer.get();
+    // size_t points_size = length/sizeof(float)/4;
 
-    std::cout << "point len : " << length << std::endl;
+    // std::cout << "point len : " << length << std::endl;
 
     // float *points_data = nullptr;
     // unsigned int points_data_size = points_size * 4 * sizeof(float);
 
-    std::vector<float> points_vec(points_size);
-    for(auto i = 0; i < points_size; ++i) {
-        points_vec[i] = points[i];
-        // std::cout << i <<", " <<points_vec[i] << std::endl;
+    // std::vector<float> points_vec(points_size);
+    // for(auto i = 0; i < 1000; ++i) {
+    //     points_vec[i] = points[i];
+    //     std::cout << i <<" , " <<points_vec[i] << std::endl;
+    // }
+    std::vector<float> points_vec;
+    read_cloud(data_file, points_vec);
+    std::cout << "point len : " << points_vec.size() << std::endl;
+    for(auto i = 0; i < 1000; ++i) {
+        std::cout  <<points_vec[i] << std::endl;
     }
 
     const auto voxels_size =
@@ -213,7 +242,7 @@ int main() {
             config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
-    for(int i = 0; i < 100; ++i) {
+    for(int i = 0; i < 1; ++i) {
         std::fill(voxels_.begin(), voxels_.end(), 0);
         std::fill(coordinates_.begin(), coordinates_.end(), -1);
         std::fill(num_points_per_voxel_.begin(), num_points_per_voxel_.end(), 0);
@@ -224,7 +253,7 @@ int main() {
         
         CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
         
-        centerpoint::random_input(points_vec);
+        // centerpoint::random_input(points_vec);
         // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
