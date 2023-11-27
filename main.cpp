@@ -154,7 +154,7 @@ int main() {
     centerpoint::CenterPointConfig config_1(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
     std::string precision = "fp16";
-    std::string data_file = "../data/38.pcd.bin";
+    std::string data_file = "../data/2.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
     std::string head_onnx = "../model/pts_backbone_neck_head_centerpoint.onnx";
@@ -257,6 +257,25 @@ int main() {
         // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
         int num_voxels_ = vg_ptr_->pointsToVoxels(points_vec, voxels_, coordinates_, num_points_per_voxel_);
+
+        // std::cout << "voxel_: ";
+        // for(int j=0; j<1000; ++j) {
+        //     std::cout << voxels_[j] << " , ";
+        // }
+        // std::cout << std::endl;
+
+        // std::cout << "coordinates_: ";
+        // for(int j=0; j<1000; ++j) {
+        //     std::cout << coordinates_[j] << " , ";
+        // }
+        // std::cout << std::endl;
+
+        // std::cout << "num_points_per_voxel_: ";
+        // for(int j=0; j<1000; ++j) {
+        //     std::cout << num_points_per_voxel_[j] << " , ";
+        // }
+        // std::cout << std::endl;
+
         auto end = std::chrono::high_resolution_clock::now();
         auto count = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
         timing_pre_voxel_.push_back(count/1000000.0);

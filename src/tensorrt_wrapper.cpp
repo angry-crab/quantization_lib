@@ -112,7 +112,7 @@ bool TensorRTWrapper::parseONNX(
     if (builder->platformHasFastFp16()) {
       std::cout <<  "Using TensorRT FP16 Inference" << std::endl;
       config->setFlag(nvinfer1::BuilderFlag::kFP16);
-      config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
+      // config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
     } else {
       std::cout << "TensorRT FP16 Inference isn't supported in this environment" << std::endl;
     }
