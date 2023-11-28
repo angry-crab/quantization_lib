@@ -11,6 +11,9 @@
 #include "centerpoint.hpp"
 #include "cuda_utils.hpp"
 
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
 // void GetDeviceInfo()
 // {
 //     cudaDeviceProp prop;
@@ -149,9 +152,9 @@ double getAverage(std::vector<T> const& v) {
 
 int main() {
     EventTimer timer_;
-    centerpoint::CenterPointConfig config(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
+    centerpoint::CenterPointConfig config(3, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
-    centerpoint::CenterPointConfig config_1(5, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
+    centerpoint::CenterPointConfig config_1(3, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
     std::string precision = "fp16";
     std::string data_file = "../data/2.bin";
@@ -181,17 +184,12 @@ int main() {
     // float *points_data = nullptr;
     // unsigned int points_data_size = points_size * 4 * sizeof(float);
 
-    // std::vector<float> points_vec(points_size);
-    // for(auto i = 0; i < 1000; ++i) {
-    //     points_vec[i] = points[i];
-    //     std::cout << i <<" , " <<points_vec[i] << std::endl;
-    // }
     std::vector<float> points_vec;
     read_cloud(data_file, points_vec);
     std::cout << "point len : " << points_vec.size() << std::endl;
-    for(auto i = 0; i < 1000; ++i) {
-        std::cout  <<points_vec[i] << std::endl;
-    }
+    // for(auto i = 0; i < 1000; ++i) {
+    //     std::cout  <<points_vec[i] << std::endl;
+    // }
 
     const auto voxels_size =
         config.max_voxel_size_ * config.max_point_in_voxel_size_ * config.point_feature_size_;
@@ -346,6 +344,8 @@ int main() {
     std::cout << "    Head_trt: "   << e << " ms." << std::endl;
     std::cout << "    Post: "   << f << " ms." << std::endl;
     std::cout << "    Total: "          << total << " ms." << std::endl;
+
+    Eigen::Affine3d pose_affine;
 
 
     if (stream_) {

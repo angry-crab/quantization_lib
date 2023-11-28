@@ -19,6 +19,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-deprecated-declaratio
 set(TENSORRT_INCLUDE ${TENSORRT_ROOT})
 set(TENSORRT_LIB     ${TENSORRT_ROOT})
 
+find_package(Eigen3 REQUIRED)
+message("Eigen3")
+message(STATUS "${EIGEN3_INCLUDE_DIR}")
+
 find_library(NVONNXPARSER nvonnxparser)
 if(NVONNXPARSER)
   message("NVONNXPARSER ok")
@@ -34,6 +38,7 @@ endif()
 include_directories(
   ${CUDA_INCLUDE_DIRS}
   ${TENSORRT_INCLUDE}
+  ${EIGEN3_INCLUDE_DIR}
   include
 )
 
@@ -55,6 +60,7 @@ cuda_add_executable(${PROJECT_NAME} main.cpp ${SOURCE_FILES})
 target_link_LIBraries(${PROJECT_NAME}
     libnvinfer.so
     libnvonnxparser.so
+    Eigen3::Eigen
 )
 
 # add_executable(main main.cpp src/voxel_generator.cpp src/utils.cpp)

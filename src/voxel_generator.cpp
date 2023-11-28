@@ -130,7 +130,7 @@ std::size_t VoxelGenerator::pointsToVoxels(
     point[0] = data[i];
     point[1] = data[i + 1];
     point[2] = data[i + 2];
-    point[3] = data[i + 3];
+    // point[3] = data[i + 3];
 
     out_of_range = false;
     for (std::size_t di = 0; di < config_.point_dim_size_; di++) {

@@ -92,11 +92,6 @@ bool TensorRTWrapper::parseONNX(
     return false;
   }
 
-  const auto flag =
-    1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
-  auto network =
-    TrtUniquePtr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(flag));
-
   auto config =
     TrtUniquePtr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
   if (!config) {
@@ -149,6 +144,10 @@ bool TensorRTWrapper::parseONNX(
     }
   }
 
+  const auto flag =
+    1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  auto network =
+    TrtUniquePtr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(flag));
   // if (precision == "int8") {
   //   setLayerPrecision(network);
   //   bool res = setDynamicRange(network);
