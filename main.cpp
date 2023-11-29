@@ -76,7 +76,7 @@ bool hasEnding(std::string const &fullString, std::string const &ending)
 //     return 0;  
 // }
 
-void read_cloud(std::string& input, std::vector<float>& buffer) {
+void read_cloud(std::string input, std::vector<float>& buffer) {
     // Ptr cloud(new PointCloud);
     std::fstream file(input.c_str(), std::ios::in | std::ios::binary);
     if(!file.good()){
@@ -99,7 +99,7 @@ void read_cloud(std::string& input, std::vector<float>& buffer) {
     // return cloud;
 }
 
-void write_cloud(std::string& output, std::vector<float>& data) {
+void write_cloud(std::string output, std::vector<float>& data) {
     pcl::PointCloud<pcl::PointXYZ> cloud;
     
     for(int i = 0; i < data.size(); i += 5) {
@@ -112,7 +112,7 @@ void write_cloud(std::string& output, std::vector<float>& data) {
 
 void dumpDetectionsAsMesh(
   const std::vector<centerpoint::Box3D> & objects,
-  const std::string & output_path)
+  const std::string output_path)
 {
   std::ofstream ofs(output_path, std::ofstream::out);
   std::stringstream vertices_stream;
@@ -127,7 +127,7 @@ void dumpDetectionsAsMesh(
   ofs << "property float x" << std::endl;
   ofs << "property float y" << std::endl;
   ofs << "property float z" << std::endl;
-  ofs << "element face " << 12 * num_detections << std::endl;
+  ofs << "element face " << 11 * num_detections << std::endl;
   ofs << "property list uchar uint vertex_indices" << std::endl;
   ofs << "end_header" << std::endl;
 
@@ -224,9 +224,9 @@ int main() {
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
     centerpoint::CenterPointConfig config_1(3, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
-    std::string output_path = "../data/"
+    std::string output_path = "../data/";
     std::string precision = "fp16";
-    std::string data_file = "../data/2.bin";
+    std::string data_file = "../data/38.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
     std::string head_onnx = "../model/pts_backbone_neck_head_centerpoint.onnx";

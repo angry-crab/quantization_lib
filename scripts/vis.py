@@ -21,8 +21,8 @@ import open3d as o3d
 
 def main(args=None):
 
-    pcd_path = "../data/test.pcd"
-    detections_path = "../data/test.ply"
+    pcd_path = "../data/0.pcd"
+    detections_path = "../data/0.ply"
 
     mesh = o3d.io.read_triangle_mesh(detections_path)
     pcd = o3d.io.read_point_cloud(pcd_path)

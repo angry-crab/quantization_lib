@@ -11,6 +11,8 @@
 namespace centerpoint
 {
 
+constexpr double pi = 3.14159265358979323846;
+
 std::vector<Eigen::Vector3d> getVertices(
   const Box3D & shape, const Eigen::Affine3d & pose)
 {
@@ -62,7 +64,7 @@ std::vector<Eigen::Vector3d> getVertices(
 
 void Box3DtoAffine(const Box3D& box, Eigen::Affine3d& affine) {
     Eigen::Quaterniond q;
-    float roll = 0.0, pitch = 0.0, yaw = box.yaw;
+    float roll = 0.0, pitch = 0.0, yaw = -box.yaw - pi / 2;
     q = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX())
         * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
         * Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
