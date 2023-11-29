@@ -8,11 +8,12 @@
 #include <chrono>
 #include <numeric>
 
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+
 #include "centerpoint.hpp"
 #include "cuda_utils.hpp"
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
+#include "geometry_utils.hpp"
 
 // void GetDeviceInfo()
 // {
@@ -96,7 +97,74 @@ void read_cloud(std::string& input, std::vector<float>& buffer) {
     file.close();
     std::cout << "Read " + input + " Done !" << std::endl;
     // return cloud;
-};
+}
+
+void write_cloud(std::string& output, std::vector<float>& data) {
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    
+    for(int i = 0; i < data.size(); i += 5) {
+        pcl::PointXYZ point(data[i], data[i+1], data[i+2]);
+        cloud.push_back(point);
+    }
+
+    pcl::io::savePCDFileASCII (output, cloud);
+}
+
+void dumpDetectionsAsMesh(
+  const std::vector<centerpoint::Box3D> & objects,
+  const std::string & output_path)
+{
+  std::ofstream ofs(output_path, std::ofstream::out);
+  std::stringstream vertices_stream;
+  std::stringstream faces_stream;
+  int index = 0;
+  int num_detections = static_cast<int>(objects.size());
+
+  ofs << "ply" << std::endl;
+  ofs << "format ascii 1.0" << std::endl;
+  ofs << "comment created by lidar_centerpoint" << std::endl;
+  ofs << "element vertex " << 8 * num_detections << std::endl;
+  ofs << "property float x" << std::endl;
+  ofs << "property float y" << std::endl;
+  ofs << "property float z" << std::endl;
+  ofs << "element face " << 12 * num_detections << std::endl;
+  ofs << "property list uchar uint vertex_indices" << std::endl;
+  ofs << "end_header" << std::endl;
+
+  auto streamFace = [&faces_stream](int v1, int v2, int v3) {
+    faces_stream << std::to_string(3) << " " << std::to_string(v1) << " " << std::to_string(v2)
+                 << " " << std::to_string(v3) << std::endl;
+  };
+
+  for (const auto & object : objects) {
+    Eigen::Affine3d pose_affine;
+    Box3DtoAffine(object, pose_affine);
+
+    std::vector<Eigen::Vector3d> vertices = getVertices(object, pose_affine);
+
+    for (const auto & vertex : vertices) {
+      vertices_stream << vertex.x() << " " << vertex.y() << " " << vertex.z() << std::endl;
+    }
+
+    streamFace(index + 1, index + 3, index + 4);
+    streamFace(index + 3, index + 5, index + 6);
+    streamFace(index + 0, index + 7, index + 5);
+    streamFace(index + 7, index + 2, index + 4);
+    streamFace(index + 5, index + 3, index + 1);
+    streamFace(index + 7, index + 0, index + 2);
+    streamFace(index + 2, index + 1, index + 4);
+    streamFace(index + 4, index + 3, index + 6);
+    streamFace(index + 5, index + 7, index + 6);
+    streamFace(index + 6, index + 7, index + 4);
+    streamFace(index + 0, index + 5, index + 1);
+    index += 8;
+  }
+
+  ofs << vertices_stream.str();
+  ofs << faces_stream.str();
+
+  ofs.close();
+}
 
 template<typename T>
 double getAverage(std::vector<T> const& v) {
@@ -156,6 +224,7 @@ int main() {
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
     centerpoint::CenterPointConfig config_1(3, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
+    std::string output_path = "../data/"
     std::string precision = "fp16";
     std::string data_file = "../data/2.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
@@ -327,6 +396,9 @@ int main() {
             head_out_rot_d_.get(), head_out_vel_d_.get(), det_boxes3d, stream_));
         timing_post_.push_back(timer_.stop("Post_kernel", true));
         std::cout << "detect size : " << det_boxes3d.size() << std::endl;
+
+        write_cloud(output_path + std::to_string(i) + ".pcd", points_vec);
+        dumpDetectionsAsMesh(det_boxes3d, output_path + std::to_string(i) + ".ply");
     }
 
     float a = getAverage(timing_pre_voxel_);
@@ -344,9 +416,6 @@ int main() {
     std::cout << "    Head_trt: "   << e << " ms." << std::endl;
     std::cout << "    Post: "   << f << " ms." << std::endl;
     std::cout << "    Total: "          << total << " ms." << std::endl;
-
-    Eigen::Affine3d pose_affine;
-
 
     if (stream_) {
         cudaStreamSynchronize(stream_);

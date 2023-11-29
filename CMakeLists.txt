@@ -30,6 +30,9 @@ if(NVONNXPARSER)
 endif()
 find_package(CUDA REQUIRED)
 # enable_language(CUDA)
+
+find_package(PCL 1.3 REQUIRED)
+
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   message("Using Debug Mode")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -g -G --ptxas-options=-v)
@@ -39,6 +42,7 @@ include_directories(
   ${CUDA_INCLUDE_DIRS}
   ${TENSORRT_INCLUDE}
   ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
   include
 )
 
@@ -48,7 +52,10 @@ message(STATUS "${CUDA_INCLUDE_DIRS}")
 link_directories(
   ${TENSORRT_LIB}
   ${NVONNXPARSER}
+  ${PCL_LIBRARY_DIRS}
 )
+
+add_definitions(${PCL_DEFINITIONS})
 
 file(GLOB_RECURSE SOURCE_FILES 
   src/*.cu
@@ -61,6 +68,7 @@ target_link_LIBraries(${PROJECT_NAME}
     libnvinfer.so
     libnvonnxparser.so
     Eigen3::Eigen
+    ${PCL_LIBRARIES}
 )
 
 # add_executable(main main.cpp src/voxel_generator.cpp src/utils.cpp)
