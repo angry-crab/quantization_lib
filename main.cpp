@@ -224,8 +224,10 @@ int main() {
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 0);
     centerpoint::CenterPointConfig config_1(3, 4, 40000, {-76.8, -76.8, -4.0, 76.8, 76.8, 6.0}, 
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
+
+    std::string input_path = "../data/test/";
     std::string output_path = "../data/";
-    std::string precision = "fp16";
+    std::string precision = "int8";
     std::string data_file = "../data/38.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
@@ -309,7 +311,8 @@ int main() {
             config.grid_size_x_));
     std::unique_ptr<centerpoint::PostProcessCUDA> post_proc_ptr_ = std::make_unique<centerpoint::PostProcessCUDA>(config);
 
-    for(int i = 0; i < 1; ++i) {
+    for(int i = 0; i < 200; ++i) {
+
         std::fill(voxels_.begin(), voxels_.end(), 0);
         std::fill(coordinates_.begin(), coordinates_.end(), -1);
         std::fill(num_points_per_voxel_.begin(), num_points_per_voxel_.end(), 0);
@@ -319,6 +322,10 @@ int main() {
             cudaMemsetAsync(spatial_features_d_.get(), 0, spatial_features_size_ * sizeof(float), stream_));
         
         CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
+
+        std::vector<float> points_vec;
+        read_cloud(input_path + std::to_string(i) + ".pcd.bin", points_vec);
+        std::cout << "point len : " << points_vec.size() << std::endl;
         
         // centerpoint::random_input(points_vec);
         // std::cout << points_vec[0] << " " << points_vec[1] << " " << points_vec[100] << " " << points_vec[200] << std::endl;
@@ -369,6 +376,21 @@ int main() {
             stream_));
         timing_pre_.push_back(timer_.stop("GenerateFeatures_kernel", true));
 
+        // have to collect min and max for int8 calibration
+        std::vector<float> encoder_in_feature(encoder_in_feature_size_);
+        CHECK_CUDA_ERROR(cudaMemcpyAsync(
+        encoder_in_feature.data(), encoder_in_features_d_.get(), encoder_in_feature_size_ * sizeof(float),
+        cudaMemcpyDeviceToHost, stream_));
+        CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
+
+        float e_min = 100000.0, e_max = -100000.0;
+        for(float i : encoder_in_feature) {
+            e_min = std::min(e_min, i);
+            e_max = std::max(e_max, i);
+        }
+
+        std::cout << "encoder_in_features_d_ : max = " << e_max << " min = " << e_min << std::endl;
+
         std::vector<void *> encoder_buffers{encoder_in_features_d_.get(), pillar_features_d_.get()};
         timer_.start(stream_);
         encoder_trt_ptr_->context_->enqueueV2(encoder_buffers.data(), stream_, nullptr);
@@ -380,6 +402,21 @@ int main() {
             config.encoder_out_feature_size_, config.grid_size_x_, config.grid_size_y_,
             spatial_features_d_.get(), stream_));
         timing_seletc_.push_back(timer_.stop("Select_kernel", true));
+
+        // have to collect min and max for int8 calibration
+        std::vector<float> spatial_features(spatial_features_size_);
+        CHECK_CUDA_ERROR(cudaMemcpyAsync(
+        spatial_features.data(), spatial_features_d_.get(), spatial_features_size_ * sizeof(float),
+        cudaMemcpyDeviceToHost, stream_));
+        CHECK_CUDA_ERROR(cudaStreamSynchronize(stream_));
+
+        float s_min = 100000.0, s_max = -100000.0;
+        for(float i : spatial_features) {
+            s_min = std::min(s_min, i);
+            s_max = std::max(s_max, i);
+        }
+
+        std::cout << "spatial_features_d_ : max = " << s_max << " min = " << s_min << std::endl;
 
         std::vector<void *> head_buffers = {spatial_features_d_.get(), head_out_heatmap_d_.get(),
                                             head_out_offset_d_.get(),  head_out_z_d_.get(),
@@ -397,8 +434,10 @@ int main() {
         timing_post_.push_back(timer_.stop("Post_kernel", true));
         std::cout << "detect size : " << det_boxes3d.size() << std::endl;
 
-        write_cloud(output_path + std::to_string(i) + ".pcd", points_vec);
-        dumpDetectionsAsMesh(det_boxes3d, output_path + std::to_string(i) + ".ply");
+        // Uncomment these if outputs needed
+        
+        // write_cloud(output_path + std::to_string(i) + ".pcd", points_vec);
+        // dumpDetectionsAsMesh(det_boxes3d, output_path + std::to_string(i) + ".ply");
     }
 
     float a = getAverage(timing_pre_voxel_);

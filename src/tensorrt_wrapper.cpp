@@ -123,18 +123,27 @@ bool TensorRTWrapper::parseONNX(
       config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
       // builder->setInt8Mode(true);
 
-      std::vector<int> v;
+      // not being used
       std::string s("?");
       std::string cache_file;
+      DummyBatchStream dbs; 
+      float max = 100.0, min = -100.0;
+      std::vector<int> v{};
+
       if(config_.mode_ == 0) {
         v = std::vector<int>{40000, 9, 32};
-        cache_file = "/home/development/quantization_lib/model/cal_encoder.txt";
+        cache_file = "/home/adehome/quantization_lib/model/cal_encoder.txt";
+        min = -80.0, max = 80.0;
       }
       else {
         v = std::vector<int>{32, 560, 560};
-        cache_file = "/home/development/quantization_lib/model/cal_head.txt";
+        cache_file = "/home/adehome/quantization_lib/model/cal_head.txt";
+        min = 0.0, max = 5.0;
       }
-      DummyBatchStream dbs(s, v); 
+
+      // min and max have to be measured somehow
+      dbs.setDim(v);
+      dbs.setMinMax(min, max);
 
       calibrator.reset(new Int8EntropyCalibrator(dbs, cache_file, true));
       config->setInt8Calibrator(calibrator.get());

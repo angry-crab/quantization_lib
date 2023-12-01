@@ -21,14 +21,19 @@ namespace centerpoint
 class DummyBatchStream
 {
 public:
-    DummyBatchStream(std::string& dataFile, std::vector<int>& dim)
+    DummyBatchStream() {};
+
+    DummyBatchStream(std::string dataFile, std::vector<int>& dim, float min = -100.0, float max = 100.0)
+    : max_(max), min_(min)
      //!< We already know the dimensions of MNIST images.
     {
         mDims = nvinfer1::Dims{3, {dim[0], dim[1], dim[2]}};
         std::size_t size = dim[0] * dim[1] * dim[2];
         mData.resize(size);
 
-        random_input(mData);
+        init_time();
+        random_input(mData, min_, max_);
+
         // srand(static_cast <unsigned> (time(0)));
         // for(int i = 0; i < size; ++i) {
         //   mData[i] = (rand() / ( RAND_MAX / (10.0) ) );
@@ -74,6 +79,31 @@ public:
     nvinfer1::Dims getDims() const
     {
         return nvinfer1::Dims{4, {mBatchSize, mDims.d[0], mDims.d[1], mDims.d[2]}};
+    }
+
+    void setData(const std::vector<float>& data)
+    {
+      if(data.size() < mData.size())
+      {
+        std::cerr << "BatchStream input data size not match! " << std::endl;
+        return;
+      }
+      for(std::size_t i=0; i<mData.size(); ++i)
+      {
+        mData[i] = data[i];
+      }
+    }
+
+    void setMinMax(float min, float max) {
+      max_ = max;
+      min_ = min;
+      random_input(mData, min_, max_);
+    }
+
+    void setDim(std::vector<int> dim) {
+      mDims = nvinfer1::Dims{3, {dim[0], dim[1], dim[2]}};
+      std::size_t size = dim[0] * dim[1] * dim[2];
+      mData.resize(size);
     }
 
 private:
@@ -129,9 +159,10 @@ private:
     int mMaxBatches{100};
     nvinfer1::Dims mDims{};
     std::vector<float> mData{};
+    float max_{0.0}, min_{0.0};
 };
 
-class Int8EntropyCalibrator : public nvinfer1::IInt8MinMaxCalibrator
+class Int8EntropyCalibrator : public nvinfer1::IInt8EntropyCalibrator2
 {
 public:
   Int8EntropyCalibrator(
@@ -213,6 +244,11 @@ public:
     // std::cout << "writeCalibrationCache" << std::endl;
     std::ofstream output(calibration_cache_file_, std::ios::binary);
     output.write(reinterpret_cast<const char *>(cache), length);
+  }
+
+  void setBatchStreamData(const std::vector<float>& data)
+  {
+    stream_.setData(data);
   }
 
 private:

@@ -27,7 +27,7 @@ std::size_t divup(const std::size_t a, const std::size_t b);
 
 void init_time();
 
-void random_input(std::vector<float>& input);
+void random_input(std::vector<float>& input, float min, float max);
 
 }  // namespace centerpoint
 
