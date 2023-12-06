@@ -188,35 +188,35 @@ double getAverage(std::vector<T> const& v) {
 //     std::cout << "    Total: "          << total << " ms." << std::endl;
 // }
 
-// void SaveBoxPred(std::vector<Bndbox> boxes, std::string file_name)
-// {
-//     std::ofstream ofs;
-//     ofs.open(file_name, std::ios::out);
-//     ofs.setf(std::ios::fixed, std::ios::floatfield);
-//     ofs.precision(5);
-//     if (ofs.is_open()) {
-//         for (const auto box : boxes) {
-//           ofs << box.x << " ";
-//           ofs << box.y << " ";
-//           ofs << box.z << " ";
-//           ofs << box.w << " ";
-//           ofs << box.l << " ";
-//           ofs << box.h << " ";
-//           ofs << box.vx << " ";
-//           ofs << box.vy << " ";
-//           ofs << box.rt << " ";
-//           ofs << box.id << " ";
-//           ofs << box.score << " ";
-//           ofs << "\n";
-//         }
-//     }
-//     else {
-//       std::cerr << "Output file cannot be opened!" << std::endl;
-//     }
-//     ofs.close();
-//     std::cout << "Saved prediction in: " << file_name << std::endl;
-//     return;
-// }
+void SaveBoxPred(std::vector<centerpoint::Box3D>& boxes, std::string file_name)
+{
+    std::ofstream ofs;
+    ofs.open(file_name, std::ios::out);
+    ofs.setf(std::ios::fixed, std::ios::floatfield);
+    ofs.precision(5);
+    if (ofs.is_open()) {
+        for (const auto box : boxes) {
+          ofs << box.label << " ";
+          ofs << box.score << " ";
+          ofs << box.x << " ";
+          ofs << box.y << " ";
+          ofs << box.z << " ";
+          ofs << box.length << " ";
+          ofs << box.width << " ";
+          ofs << box.height << " ";
+          ofs << box.yaw << " ";
+          ofs << box.vel_x << " ";
+          ofs << box.vel_y << " ";
+          ofs << "\n";
+        }
+    }
+    else {
+      std::cerr << "Output file cannot be opened!" << std::endl;
+    }
+    ofs.close();
+    std::cout << "Saved prediction in: " << file_name << std::endl;
+    return;
+}
 
 int main() {
     EventTimer timer_;
@@ -227,6 +227,7 @@ int main() {
 
     std::string input_path = "../data/test/";
     std::string output_path = "../data/";
+    std::string detected_object_output_path = "../data/test/objects/";
     std::string precision = "int8";
     std::string data_file = "../data/38.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
@@ -438,6 +439,7 @@ int main() {
         
         // write_cloud(output_path + std::to_string(i) + ".pcd", points_vec);
         // dumpDetectionsAsMesh(det_boxes3d, output_path + std::to_string(i) + ".ply");
+        SaveBoxPred(det_boxes3d, detected_object_output_path + std::to_string(i) + ".txt")
     }
 
     float a = getAverage(timing_pre_voxel_);
