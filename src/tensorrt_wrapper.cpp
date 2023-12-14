@@ -48,6 +48,9 @@ bool TensorRTWrapper::init(
     return false;
   }
 
+  // DLA
+  // runtime_->setDLACore(0);
+
   std::cout << "Net : " << onnx_path << std::endl;
   // printNetworkInfo(onnx_path, precision);
 
@@ -98,11 +101,21 @@ bool TensorRTWrapper::parseONNX(
     std::cout << "Failed to create config" << std::endl;
     return false;
   }
+
+  // DLA
+  // config->setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
+  // config->setDLACore(0);
+
 #if (NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSOR_PATCH >= 8400
   config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, workspace_size);
 #else
   config->setMaxWorkspaceSize(workspace_size);
 #endif
+
+  config->setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
+
+  config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
+
   if (precision == "fp16") {
     if (builder->platformHasFastFp16()) {
       std::cout <<  "Using TensorRT FP16 Inference" << std::endl;
@@ -120,7 +133,7 @@ bool TensorRTWrapper::parseONNX(
       std::cout <<  "Using TensorRT INT8 Inference" << std::endl;
       // config->setFlag(nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
       config->setFlag(nvinfer1::BuilderFlag::kINT8);
-      config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
+      // config->setFlag(nvinfer1::BuilderFlag::kOBEY_PRECISION_CONSTRAINTS);
       // builder->setInt8Mode(true);
 
       // not being used

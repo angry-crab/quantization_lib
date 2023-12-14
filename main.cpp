@@ -226,9 +226,9 @@ int main() {
         {0.32, 0.32, 10.0}, 1, 9, 0.35, 0.5, {0.3, 0.3, 0.3, 0.3, 0.0}, 1);
 
     std::string input_path = "../data/test/";
-    std::string output_path = "../data/";
+    std::string output_path = "../data/test_output/";
     std::string detected_object_output_path = "../data/test/objects/";
-    std::string precision = "int8";
+    std::string precision = "fp16";
     std::string data_file = "../data/38.pcd.bin";
     std::string encoder_onnx = "../model/pts_voxel_encoder_centerpoint.onnx";
     std::string encoder_engine = "../model/pts_voxel_encoder_centerpoint.engine";
@@ -326,6 +326,7 @@ int main() {
 
         std::vector<float> points_vec;
         read_cloud(input_path + std::to_string(i) + ".pcd.bin", points_vec);
+        // read_cloud(data_file, points_vec);
         std::cout << "point len : " << points_vec.size() << std::endl;
         
         // centerpoint::random_input(points_vec);
@@ -439,7 +440,7 @@ int main() {
         
         // write_cloud(output_path + std::to_string(i) + ".pcd", points_vec);
         // dumpDetectionsAsMesh(det_boxes3d, output_path + std::to_string(i) + ".ply");
-        SaveBoxPred(det_boxes3d, detected_object_output_path + std::to_string(i) + ".txt")
+        SaveBoxPred(det_boxes3d, detected_object_output_path + std::to_string(i) + ".txt");
     }
 
     float a = getAverage(timing_pre_voxel_);
